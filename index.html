@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Конвертер в JPG: HEIC/TIFF/JPG (пакетно)</title>
+  <style>
+    :root{
+      --bg:#0b1220; --card:#101a2e; --muted:#7f8aa3; --text:#e8eefc;
+      --accent:#7c5cff; --accent2:#23c4a8; --warn:#ffcc66; --bad:#ff5c7a;
+      --stroke:rgba(255,255,255,.10);
+      --shadow: 0 18px 40px rgba(0,0,0,.45);
+      --radius: 18px;
+      font-synthesis-weight:none;
+      color-scheme: dark;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; background: radial-gradient(1200px 600px at 20% -10%, rgba(124,92,255,.35), transparent 50%),
+                 radial-gradient(900px 500px at 90% 10%, rgba(35,196,168,.25), transparent 55%),
+                 var(--bg);
+      color:var(--text);
+      font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    .wrap{max-width:1100px; margin:36px auto; padding:0 16px}
+    .hero{
+      display:flex; gap:16px; align-items:flex-start; justify-content:space-between;
+      margin-bottom:16px;
+    }
+    h1{margin:0; font-size:22px; letter-spacing:.2px}
+    .sub{margin:6px 0 0; color:var(--muted); max-width:70ch}
+    .pill{
+      display:inline-flex; gap:8px; align-items:center; padding:7px 10px;
+      border:1px solid var(--stroke); border-radius:999px; color:var(--muted);
+      background: rgba(255,255,255,.04);
+      user-select:none;
+    }
+    .grid{display:grid; grid-template-columns: 1.2fr .8fr; gap:14px}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid var(--stroke);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card-h{padding:14px 14px 10px; border-bottom:1px solid var(--stroke)}
+    .card-b{padding:14px}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .btn{
+      appearance:none; border:1px solid var(--stroke); background: rgba(255,255,255,.05);
+      color:var(--text); padding:10px 12px; border-radius: 12px;
+      cursor:pointer; transition: transform .06s ease, background .2s ease, border-color .2s ease;
+      display:inline-flex; gap:10px; align-items:center;
+    }
+    .btn:hover{background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.18)}
+    .btn:active{transform: translateY(1px)}
+    .btn.primary{
+      background: linear-gradient(135deg, rgba(124,92,255,.95), rgba(35,196,168,.80));
+      border-color: transparent;
+    }
+    .btn.primary:hover{filter: brightness(1.02)}
+    .btn:disabled{opacity:.55; cursor:not-allowed}
+    .hint{color:var(--muted); font-size:12px}
+    .drop{
+      border: 1px dashed rgba(255,255,255,.22);
+      border-radius: 16px;
+      padding: 16px;
+      background: rgba(0,0,0,.16);
+      min-height: 120px;
+      display:flex; align-items:center; justify-content:center;
+      text-align:center;
+      transition: border-color .2s ease, background .2s ease;
+    }
+    .drop.drag{border-color: rgba(124,92,255,.9); background: rgba(124,92,255,.10)}
+    input[type="file"]{display:none}
+    .kv{
+      display:grid; grid-template-columns: 1fr auto; gap:8px 10px;
+      padding:10px 12px; border:1px solid var(--stroke); border-radius:14px;
+      background: rgba(255,255,255,.03);
+      margin-top:12px;
+    }
+    .kv label{color:var(--muted)}
+    .kv input[type="number"], .kv input[type="text"], .kv select{
+      width: 130px;
+      background: rgba(0,0,0,.25);
+      border:1px solid var(--stroke);
+      color: var(--text);
+      border-radius: 10px;
+      padding:7px 8px;
+      outline:none;
+    }
+    .kv input[type="range"]{width: 260px}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    table{
+      width:100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td{
+      padding:10px 10px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      vertical-align: middle;
+    }
+    th{color:var(--muted); font-weight:600; text-align:left}
+    .tag{
+      display:inline-flex; padding:4px 8px; border-radius:999px;
+      border:1px solid var(--stroke); background: rgba(255,255,255,.04);
+      color:var(--muted); font-size:12px;
+    }
+    .ok{color:var(--accent2)}
+    .warn{color:var(--warn)}
+    .bad{color:var(--bad)}
+    .right{text-align:right}
+    .progress{
+      height:10px; border-radius:999px; background: rgba(255,255,255,.08);
+      overflow:hidden; border:1px solid rgba(255,255,255,.10);
+    }
+    .bar{height:100%; width:0%; background: linear-gradient(90deg, rgba(124,92,255,.9), rgba(35,196,168,.85)); transition: width .15s ease}
+    .footer{
+      margin-top:12px; color:var(--muted); font-size:12px;
+      display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
+      padding: 0 2px;
+    }
+    a{color:inherit}
+  </style>
+
+  <!-- UTIF.js (TIFF decode) v3.1.0 -->
+  <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
+  <!-- heic2any (HEIC/HEIF -> jpeg/png) v0.0.4 -->
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/index.js"></script>
+  <!-- JSZip v3.10.1 -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div>
+        <h1>Пакетный конвертер в JPG (HEIC / TIFF / JPG / PNG / WebP)</h1>
+        <p class="sub">
+          Всё работает локально в браузере. TIFF и HEIC декодируются JS-библиотеками, затем рендерятся в Canvas и сохраняются как JPG.
+          “Без потери” для JPEG строго гарантировать нельзя — это перекодирование (lossy), но можно поставить высокое качество и/или ресайз.
+        </p>
+      </div>
+      <div class="pill mono">index.html • offline</div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-h">
+          <div class="row" style="justify-content:space-between">
+            <div class="row">
+              <button class="btn primary" id="btnPick">Выбрать файлы</button>
+              <button class="btn" id="btnClear" disabled>Очистить</button>
+            </div>
+            <div class="row">
+              <button class="btn" id="btnConvert" disabled>Конвертировать</button>
+              <button class="btn" id="btnZip" disabled>Скачать ZIP</button>
+            </div>
+          </div>
+          <div class="hint" style="margin-top:10px">
+            Поддержка: <span class="tag">.jpg .jpeg</span> <span class="tag">.png</span> <span class="tag">.webp</span> <span class="tag">.tif .tiff</span> <span class="tag">.heic .heif</span> и т.п.
+          </div>
+        </div>
+
+        <div class="card-b">
+          <input id="fileInput" type="file" multiple
+                 accept=".jpg,.jpeg,.png,.webp,.tif,.tiff,.heic,.heif,image/*" />
+
+          <div class="drop" id="drop">
+            <div>
+              <div style="font-size:15px; font-weight:650; margin-bottom:4px">
+                Перетащи файлы сюда
+              </div>
+              <div class="hint">или нажми “Выбрать файлы”. Никакой загрузки в интернет.</div>
+            </div>
+          </div>
+
+          <div class="kv" aria-label="settings">
+            <label for="quality">Качество JPG (0.50–1.00)</label>
+            <div class="row" style="justify-content:flex-end">
+              <input id="quality" type="range" min="0.5" max="1" step="0.01" value="0.92" />
+              <input id="qualityNum" type="number" min="0.5" max="1" step="0.01" value="0.92" />
+            </div>
+
+            <label for="maxW">Макс. ширина (px, 0 = без ресайза)</label>
+            <input id="maxW" type="number" min="0" step="1" value="0" />
+
+            <label for="maxH">Макс. высота (px, 0 = без ресайза)</label>
+            <input id="maxH" type="number" min="0" step="1" value="0" />
+
+            <label for="keepName">Имена файлов</label>
+            <select id="keepName">
+              <option value="base">как исходные (base)</option>
+              <option value="base_plus">base + суффикс</option>
+              <option value="timestamp">timestamp</option>
+            </select>
+
+            <label for="suffix">Суффикс (если выбран base+суффикс)</label>
+            <input id="suffix" type="text" value="_jpg" />
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="row" style="justify-content:space-between; margin-bottom:8px">
+              <div class="hint">Прогресс</div>
+              <div class="hint mono" id="progText">0 / 0</div>
+            </div>
+            <div class="progress"><div class="bar" id="bar"></div></div>
+          </div>
+
+          <div class="footer">
+            <div>Совет: если цель “максимально без потерь”, ставь quality 0.92–0.98 и не ресайзь.</div>
+            <div class="mono" id="stats">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <div class="row" style="justify-content:space-between">
+            <div style="font-weight:700">Очередь</div>
+            <div class="tag" id="countTag">0 файлов</div>
+          </div>
+        </div>
+        <div class="card-b" style="padding:0">
+          <table>
+            <thead>
+              <tr>
+                <th>Файл</th>
+                <th>Тип</th>
+                <th class="right">Размер</th>
+                <th>Статус</th>
+                <th class="right">Результат</th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr><td colspan="5" class="hint" style="padding:14px">Пока пусто.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  /** ========= helpers ========= */
+  const $ = (id) => document.getElementById(id);
+  const fmtBytes = (n) => {
+    const units = ["B","KB","MB","GB"];
+    let i = 0, v = n;
+    while (v >= 1024 && i < units.length-1) { v /= 1024; i++; }
+    return `${v.toFixed(i===0?0:2)} ${units[i]}`;
+  };
+  const extOf = (name) => (name.split(".").pop() || "").toLowerCase();
+  const baseName = (name) => name.replace(/\.[^/.]+$/, "");
+  const safeName = (s) => s.replace(/[^\p{L}\p{N}\-_ .]+/gu, "_").trim();
+
+  function setBar(pct) { $("bar").style.width = `${Math.max(0, Math.min(100, pct))}%`; }
+
+  /** ========= state ========= */
+  /** items: {file, status, outBlob, outName, outSize} */
+  let items = [];
+
+  /** ========= UI sync ========= */
+  function render() {
+    $("countTag").textContent = `${items.length} файлов`;
+    $("btnClear").disabled = items.length === 0;
+    $("btnConvert").disabled = items.length === 0;
+    $("btnZip").disabled = !items.some(x => x.outBlob);
+
+    const tb = $("tbody");
+    tb.innerHTML = "";
+
+    if (items.length === 0) {
+      tb.innerHTML = `<tr><td colspan="5" class="hint" style="padding:14px">Пока пусто.</td></tr>`;
+      $("progText").textContent = `0 / 0`;
+      setBar(0);
+      $("stats").textContent = "—";
+      return;
+    }
+
+    const totalIn = items.reduce((a,x)=>a + x.file.size, 0);
+    const totalOut = items.reduce((a,x)=>a + (x.outSize || 0), 0);
+    const done = items.filter(x => x.status === "done" || x.status === "error").length;
+    $("progText").textContent = `${done} / ${items.length}`;
+    setBar(items.length ? (done / items.length) * 100 : 0);
+
+    $("stats").textContent = totalOut
+      ? `in: ${fmtBytes(totalIn)} → out: ${fmtBytes(totalOut)}`
+      : `in: ${fmtBytes(totalIn)} → out: —`;
+
+    for (const it of items) {
+      const tr = document.createElement("tr");
+
+      const nameTd = document.createElement("td");
+      nameTd.textContent = it.file.name;
+
+      const typeTd = document.createElement("td");
+      const ex = extOf(it.file.name);
+      typeTd.innerHTML = `<span class="tag">${(it.file.type || ex || "unknown").toString().slice(0,24)}</span>`;
+
+      const sizeTd = document.createElement("td");
+      sizeTd.className = "right mono";
+      sizeTd.textContent = fmtBytes(it.file.size);
+
+      const stTd = document.createElement("td");
+      if (it.status === "queued") stTd.innerHTML = `<span class="tag">queued</span>`;
+      if (it.status === "work") stTd.innerHTML = `<span class="tag warn">processing</span>`;
+      if (it.status === "done") stTd.innerHTML = `<span class="tag ok">done</span>`;
+      if (it.status === "error") stTd.innerHTML = `<span class="tag bad">error</span>`;
+
+      const outTd = document.createElement("td");
+      outTd.className = "right";
+      if (it.outBlob) {
+        const a = document.createElement("a");
+        a.className = "btn";
+        a.style.padding = "6px 10px";
+        a.style.borderRadius = "10px";
+        a.textContent = fmtBytes(it.outBlob.size);
+        a.href = URL.createObjectURL(it.outBlob);
+        a.download = it.outName;
+        a.addEventListener("click", () => setTimeout(() => URL.revokeObjectURL(a.href), 5000));
+        outTd.appendChild(a);
+      } else {
+        outTd.innerHTML = `<span class="hint">—</span>`;
+      }
+
+      tr.appendChild(nameTd);
+      tr.appendChild(typeTd);
+      tr.appendChild(sizeTd);
+      tr.appendChild(stTd);
+      tr.appendChild(outTd);
+      tb.appendChild(tr);
+    }
+  }
+
+  function readSettings() {
+    const q = Number($("qualityNum").value);
+    const maxW = Number($("maxW").value);
+    const maxH = Number($("maxH").value);
+    const mode = $("keepName").value;
+    const suffix = $("suffix").value || "_jpg";
+    const quality = Number.isFinite(q) ? Math.max(0.5, Math.min(1.0, q)) : 0.92;
+
+    return { quality, maxW: Math.max(0, maxW|0), maxH: Math.max(0, maxH|0), mode, suffix };
+  }
+
+  function makeOutName(fileName, mode, suffix) {
+    const b = safeName(baseName(fileName));
+    if (mode === "timestamp") return `${Date.now()}_${Math.random().toString(16).slice(2)}.jpg`;
+    if (mode === "base_plus") return `${b}${safeName(suffix)}.jpg`;
+    return `${b}.jpg`;
+  }
+
+  /** ========= drag & drop / picking ========= */
+  $("btnPick").addEventListener("click", () => $("fileInput").click());
+
+  $("fileInput").addEventListener("change", (e) => {
+    const files = Array.from(e.target.files || []);
+    addFiles(files);
+    e.target.value = "";
+  });
+
+  const drop = $("drop");
+  ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, (e) => {
+    e.preventDefault(); e.stopPropagation();
+    drop.classList.add("drag");
+  }));
+  ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, (e) => {
+    e.preventDefault(); e.stopPropagation();
+    drop.classList.remove("drag");
+  }));
+  drop.addEventListener("drop", (e) => {
+    const files = Array.from(e.dataTransfer.files || []);
+    addFiles(files);
+  });
+
+  function addFiles(files) {
+    if (!files.length) return;
+
+    const allowed = new Set(["jpg","jpeg","png","webp","tif","tiff","heic","heif"]);
+    const picked = files.filter(f => {
+      const ex = extOf(f.name);
+      return allowed.has(ex) || (f.type && f.type.startsWith("image/"));
+    });
+
+    for (const f of picked) items.push({ file: f, status: "queued", outBlob: null, outName: null, outSize: null });
+    render();
+  }
+
+  $("btnClear").addEventListener("click", () => {
+    items = [];
+    render();
+  });
+
+  /** ========= core conversion ========= */
+  function canvasFromRGBA(rgba, w, h) {
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d", { willReadFrequently: false });
+    const img = new ImageData(new Uint8ClampedArray(rgba), w, h);
+    ctx.putImageData(img, 0, 0);
+    return c;
+  }
+
+  async function decodeTIFFToCanvas(file) {
+    const buf = await file.arrayBuffer();
+    const ifds = UTIF.decode(buf);
+    if (!ifds || !ifds.length) throw new Error("TIFF decode: IFD not found");
+    UTIF.decodeImage(buf, ifds[0]);
+    const rgba = UTIF.toRGBA8(ifds[0]); // Uint8Array RGBA
+    const w = ifds[0].width, h = ifds[0].height;
+    return canvasFromRGBA(rgba, w, h);
+  }
+
+  async function decodeGenericImageToCanvas(file) {
+    // Works for jpg/png/webp/etc if browser supports it.
+    const blobURL = URL.createObjectURL(file);
+    try {
+      const img = await createImageBitmap(file);
+      const c = document.createElement("canvas");
+      c.width = img.width; c.height = img.height;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      img.close?.();
+      return c;
+    } catch {
+      // fallback: HTMLImageElement
+      const imgEl = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Image decode failed"));
+        img.src = blobURL;
+      });
+      const c = document.createElement("canvas");
+      c.width = imgEl.naturalWidth; c.height = imgEl.naturalHeight;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(imgEl, 0, 0);
+      return c;
+    } finally {
+      URL.revokeObjectURL(blobURL);
+    }
+  }
+
+  function resizeCanvasIfNeeded(srcCanvas, maxW, maxH) {
+    if ((!maxW && !maxH) || (maxW === 0 && maxH === 0)) return srcCanvas;
+
+    const sw = srcCanvas.width, sh = srcCanvas.height;
+    let tw = sw, th = sh;
+
+    const wr = maxW ? (maxW / sw) : 1;
+    const hr = maxH ? (maxH / sh) : 1;
+    const r = Math.min(wr, hr);
+
+    if (r >= 1) return srcCanvas; // already smaller
+
+    tw = Math.max(1, Math.floor(sw * r));
+    th = Math.max(1, Math.floor(sh * r));
+
+    const dst = document.createElement("canvas");
+    dst.width = tw; dst.height = th;
+    const ctx = dst.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(srcCanvas, 0, 0, tw, th);
+    return dst;
+  }
+
+  async function canvasToJpegBlob(canvas, quality) {
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob((b) => {
+        if (!b) reject(new Error("toBlob returned null"));
+        else resolve(b);
+      }, "image/jpeg", quality);
+    });
+  }
+
+  async function convertOne(it, settings) {
+    const ex = extOf(it.file.name);
+
+    // HEIC/HEIF via heic2any
+    if (ex === "heic" || ex === "heif" || (it.file.type && it.file.type.includes("heic"))) {
+      const outBlob = await heic2any({
+        blob: it.file,
+        toType: "image/jpeg",
+        quality: settings.quality
+      });
+      // heic2any может вернуть Blob или массив Blob'ов
+      const b = Array.isArray(outBlob) ? outBlob[0] : outBlob;
+      return { canvas: null, blob: b };
+    }
+
+    // TIFF via UTIF.js
+    let canvas;
+    if (ex === "tif" || ex === "tiff") {
+      canvas = await decodeTIFFToCanvas(it.file);
+    } else {
+      canvas = await decodeGenericImageToCanvas(it.file);
+    }
+
+    const resized = resizeCanvasIfNeeded(canvas, settings.maxW, settings.maxH);
+    const jpegBlob = await canvasToJpegBlob(resized, settings.quality);
+    return { canvas: resized, blob: jpegBlob };
+  }
+
+  async function convertAll() {
+    const settings = readSettings();
+
+    const total = items.length;
+    let done = 0;
+
+    for (const it of items) {
+      it.status = "work";
+      it.outBlob = null;
+      it.outName = null;
+      it.outSize = null;
+      render();
+
+      try {
+        const res = await convertOne(it, settings);
+        it.outBlob = res.blob;
+        it.outName = makeOutName(it.file.name, settings.mode, settings.suffix);
+        it.outSize = it.outBlob.size;
+        it.status = "done";
+      } catch (err) {
+        console.error(err);
+        it.status = "error";
+      } finally {
+        done++;
+        $("progText").textContent = `${done} / ${total}`;
+        setBar((done / total) * 100);
+        render();
+      }
+    }
+  }
+
+  /** ========= ZIP download ========= */
+  async function downloadZip() {
+    const zip = new JSZip();
+    const folder = zip.folder("jpg") || zip;
+
+    const ready = items.filter(x => x.outBlob && x.outName);
+    if (!ready.length) return;
+
+    // добавляем файлы
+    for (const it of ready) {
+      folder.file(it.outName, it.outBlob);
+    }
+
+    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `converted_${Date.now()}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  /** ========= wiring ========= */
+  $("btnConvert").addEventListener("click", convertAll);
+  $("btnZip").addEventListener("click", downloadZip);
+
+  // quality slider sync
+  const syncQuality = (v) => {
+    const val = Number(v);
+    $("quality").value = String(val);
+    $("qualityNum").value = String(val);
+  };
+  $("quality").addEventListener("input", (e) => syncQuality(e.target.value));
+  $("qualityNum").addEventListener("input", (e) => {
+    let v = Number(e.target.value);
+    if (!Number.isFinite(v)) v = 0.92;
+    v = Math.max(0.5, Math.min(1.0, v));
+    syncQuality(v.toFixed(2));
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

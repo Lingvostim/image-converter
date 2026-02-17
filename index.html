@@ -3,21 +3,15 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Image Converter</title>
+<title>Конвертер изображений</title>
 
-<!-- TIFF -->
 <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
-
-<!-- HEIC стабильный decoder -->
 <script src="https://cdn.jsdelivr.net/npm/libheif-js@1.16.2/libheif.min.js"></script>
-
-<!-- ZIP -->
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
 <style>
 :root{
 --bg:#0b1220;
---card:#131d33;
 --accent:#7c5cff;
 --accent2:#23c4a8;
 --text:#eaf0ff;
@@ -27,6 +21,9 @@
 
 body{
 margin:0;
+min-height:100vh;
+display:flex;
+flex-direction:column;
 background:
 radial-gradient(1200px 600px at 5% -10%,rgba(124,92,255,.25),transparent 60%),
 radial-gradient(1000px 600px at 95% 0%,rgba(35,196,168,.2),transparent 60%),
@@ -37,17 +34,16 @@ font-family:system-ui;
 
 .container{
 max-width:1400px;
-margin:40px auto;
+margin:30px auto;
 padding:0 30px;
+flex:1;
 }
-
-h1{margin:0 0 8px;font-size:28px}
-.subtitle{color:var(--muted);margin-bottom:25px}
 
 .layout{
 display:grid;
-grid-template-columns: 1.3fr 1fr;
+grid-template-columns:1.4fr 1fr;
 gap:25px;
+align-items:stretch;
 }
 
 .card{
@@ -55,25 +51,19 @@ background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
 border:1px solid var(--border);
 border-radius:16px;
 padding:22px;
+display:flex;
+flex-direction:column;
 }
 
 .drop{
 border:2px dashed rgba(255,255,255,.2);
 border-radius:14px;
-padding:35px;
+padding:30px;
 text-align:center;
 cursor:pointer;
 color:var(--muted);
-transition:.2s;
 margin-bottom:20px;
 }
-
-.drop:hover{
-border-color:var(--accent);
-background:rgba(124,92,255,.07);
-}
-
-input[type=file]{display:none;}
 
 .controls{
 display:flex;
@@ -100,8 +90,6 @@ background:rgba(255,255,255,.08);
 color:var(--text);
 }
 
-button:disabled{opacity:.4}
-
 .progress{
 height:6px;
 background:rgba(255,255,255,.08);
@@ -120,11 +108,11 @@ transition:.3s;
 .file{
 display:flex;
 justify-content:space-between;
-padding:12px 14px;
-border-radius:12px;
+padding:12px;
+border-radius:10px;
 background:rgba(255,255,255,.05);
 border:1px solid var(--border);
-margin-bottom:10px;
+margin-bottom:8px;
 font-size:13px;
 }
 
@@ -138,52 +126,47 @@ font-size:13px;
 </head>
 
 <body>
+
 <div class="container">
 
-<h1>Конвертер изображений</h1>
-<div class="subtitle">
-1) Добавь файлы → 2) Нажми «Конвертировать» → 3) Скачай ZIP.  
-HEIC / TIFF / IMG → JPG. Всё локально.
-</div>
+<h2>Конвертер изображений</h2>
+<p style="color:var(--muted)">
+Добавь файлы → Конвертируй → Скачай ZIP. Всё локально.
+</p>
 
 <div class="layout">
 
-<!-- ЛЕВАЯ КОЛОНКА -->
 <div class="card">
-
 <div class="drop" id="drop">
-Перетащи файлы сюда или нажми
-<input type="file" id="fileInput" multiple
+Перетащи файлы или нажми
+<input type="file" id="input" multiple
 accept=".jpg,.jpeg,.png,.webp,.tif,.tiff,.heic,.heif,.img,image/*">
 </div>
 
 <div class="controls">
 <label>Качество JPG</label>
-<input type="number" id="quality" value="0.92" min="0.5" max="1" step="0.01">
-<button class="primary" id="convertBtn">Конвертировать</button>
-<button class="secondary" id="zipBtn" disabled>Скачать ZIP</button>
-<button class="secondary" id="clearBtn">Очистить</button>
+<input type="number" id="quality" value="0.9" step="0.01" min="0.5" max="1">
+<button class="primary" id="convert">Конвертировать</button>
+<button class="secondary" id="zip" disabled>Скачать ZIP</button>
 </div>
 
 <div class="progress"><div class="bar" id="bar"></div></div>
-
 </div>
 
-<!-- ПРАВАЯ КОЛОНКА -->
 <div class="card">
 <h3 style="margin-top:0">Очередь</h3>
-<div id="fileList"></div>
+<div id="list"></div>
 </div>
 
 </div>
 </div>
 
 <script>
-const input=document.getElementById("fileInput");
+const input=document.getElementById("input");
 const drop=document.getElementById("drop");
-const list=document.getElementById("fileList");
+const list=document.getElementById("list");
 const bar=document.getElementById("bar");
-const zipBtn=document.getElementById("zipBtn");
+const zipBtn=document.getElementById("zip");
 
 let items=[];
 
@@ -219,6 +202,16 @@ list.appendChild(d);
 });
 }
 
+async function resizeCanvas(canvas){
+if(canvas.width<=3000)return canvas;
+const scale=3000/canvas.width;
+const c=document.createElement("canvas");
+c.width=3000;
+c.height=canvas.height*scale;
+c.getContext("2d").drawImage(canvas,0,0,c.width,c.height);
+return c;
+}
+
 async function decodeHEIC(file){
 return new Promise((resolve,reject)=>{
 const reader=new FileReader();
@@ -227,8 +220,9 @@ const decoder=new libheif.HeifDecoder();
 const data=decoder.decode(reader.result);
 if(!data||!data.length)return reject();
 const img=data[0];
-img.display().then(canvas=>{
-canvas.toBlob(resolve,"image/jpeg",0.92);
+img.display().then(async canvas=>{
+canvas=await resizeCanvas(canvas);
+canvas.toBlob(resolve,"image/jpeg",0.9);
 });
 };
 reader.readAsArrayBuffer(file);
@@ -238,54 +232,50 @@ reader.readAsArrayBuffer(file);
 async function convertOne(it,q){
 const e=ext(it.file.name);
 
-// HEIC
-if(e==="heic"||e==="heif"){
+if(e==="heic"||e==="heif")
 return await decodeHEIC(it.file);
-}
 
-// TIFF
-if(e==="tif"||e==="tiff"){
-const buf=await it.file.arrayBuffer();
-const ifds=UTIF.decode(buf);
-UTIF.decodeImage(buf,ifds[0]);
-const rgba=UTIF.toRGBA8(ifds[0]);
-const c=document.createElement("canvas");
-c.width=ifds[0].width;
-c.height=ifds[0].height;
-c.getContext("2d").putImageData(
-new ImageData(new Uint8ClampedArray(rgba),
-ifds[0].width,
-ifds[0].height),0,0);
-return await new Promise(r=>c.toBlob(r,"image/jpeg",q));
-}
-
-// остальные
 const img=await createImageBitmap(it.file);
-const c=document.createElement("canvas");
+let c=document.createElement("canvas");
 c.width=img.width;
 c.height=img.height;
 c.getContext("2d").drawImage(img,0,0);
 img.close();
+c=await resizeCanvas(c);
 return await new Promise(r=>c.toBlob(r,"image/jpeg",q));
 }
 
-document.getElementById("convertBtn").onclick=async()=>{
+// параллельная обработка по 2 файла
+document.getElementById("convert").onclick=async()=>{
 const q=parseFloat(document.getElementById("quality").value);
-let done=0;
+let active=0,index=0,done=0;
 
-for(const it of items){
-it.status="processing";render();
-try{
-it.blob=await convertOne(it,q);
-it.status="done";
-}catch{
-it.status="error";
+return new Promise(resolve=>{
+function next(){
+if(index>=items.length&&active===0){
+zipBtn.disabled=!items.some(i=>i.blob);
+return resolve();
 }
+while(active<2&&index<items.length){
+const it=items[index++];
+it.status="processing";render();
+active++;
+convertOne(it,q).then(blob=>{
+it.blob=blob;
+it.status="done";
+}).catch(()=>{
+it.status="error";
+}).finally(()=>{
+active--;
 done++;
 bar.style.width=(done/items.length*100)+"%";
 render();
+next();
+});
 }
-zipBtn.disabled=!items.some(i=>i.blob);
+}
+next();
+});
 };
 
 zipBtn.onclick=async()=>{
@@ -299,13 +289,7 @@ a.href=URL.createObjectURL(blob);
 a.download="converted_images.zip";
 a.click();
 };
-
-document.getElementById("clearBtn").onclick=()=>{
-items=[];
-bar.style.width="0%";
-zipBtn.disabled=true;
-render();
-};
 </script>
+
 </body>
 </html>

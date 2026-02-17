@@ -1,186 +1,338 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>HEIC / TIFF / IMG → JPG конвертер</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Premium Image Converter</title>
 
 <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/index.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
 <style>
-body{background:#0b1220;color:#e8eefc;font-family:system-ui;margin:0;padding:30px}
-button{padding:8px 14px;margin:6px;border-radius:8px;border:1px solid #444;background:#222;color:#fff;cursor:pointer}
-button:disabled{opacity:.5}
-input{margin:6px}
-table{width:100%;margin-top:20px;border-collapse:collapse}
-td,th{padding:8px;border-bottom:1px solid #333}
-.progress{height:8px;background:#222;margin-top:10px}
-.bar{height:100%;background:#7c5cff;width:0%}
+:root{
+--bg:#0b1220;
+--card:#121b2e;
+--accent:#7c5cff;
+--accent2:#23c4a8;
+--text:#eaf0ff;
+--muted:#7d8aa8;
+--radius:18px;
+--border:rgba(255,255,255,.08);
+--shadow:0 25px 50px rgba(0,0,0,.45);
+}
+
+*{box-sizing:border-box}
+
+body{
+margin:0;
+background:
+radial-gradient(1200px 600px at 15% -10%,rgba(124,92,255,.3),transparent 60%),
+radial-gradient(900px 500px at 90% 10%,rgba(35,196,168,.25),transparent 60%),
+var(--bg);
+color:var(--text);
+font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+}
+
+.container{
+max-width:1100px;
+margin:60px auto;
+padding:0 20px;
+}
+
+h1{
+font-weight:700;
+letter-spacing:.3px;
+margin-bottom:10px;
+}
+
+.subtitle{
+color:var(--muted);
+margin-bottom:30px;
+}
+
+.card{
+background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
+border:1px solid var(--border);
+border-radius:var(--radius);
+padding:24px;
+box-shadow:var(--shadow);
+backdrop-filter:blur(10px);
+}
+
+.dropzone{
+border:2px dashed rgba(255,255,255,.2);
+border-radius:16px;
+padding:40px;
+text-align:center;
+cursor:pointer;
+transition:.3s;
+margin-bottom:20px;
+}
+
+.dropzone:hover{
+border-color:var(--accent);
+background:rgba(124,92,255,.08);
+}
+
+input[type=file]{display:none;}
+
+.controls{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+margin-bottom:20px;
+}
+
+button{
+border:none;
+padding:12px 18px;
+border-radius:12px;
+cursor:pointer;
+font-weight:600;
+transition:.2s;
+}
+
+button.primary{
+background:linear-gradient(135deg,var(--accent),var(--accent2));
+color:white;
+}
+
+button.secondary{
+background:rgba(255,255,255,.08);
+color:var(--text);
+}
+
+button:disabled{
+opacity:.4;
+cursor:not-allowed;
+}
+
+button:hover:not(:disabled){
+transform:translateY(-2px);
+}
+
+input[type=number]{
+background:rgba(0,0,0,.3);
+border:1px solid var(--border);
+color:var(--text);
+padding:8px;
+border-radius:10px;
+width:100px;
+}
+
+.progress{
+height:8px;
+border-radius:999px;
+background:rgba(255,255,255,.08);
+overflow:hidden;
+margin-top:15px;
+}
+
+.bar{
+height:100%;
+width:0%;
+background:linear-gradient(90deg,var(--accent),var(--accent2));
+transition:.3s;
+}
+
+.file-list{
+margin-top:25px;
+display:grid;
+gap:12px;
+}
+
+.file-card{
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:14px 18px;
+border-radius:14px;
+background:rgba(255,255,255,.04);
+border:1px solid var(--border);
+}
+
+.file-info{
+display:flex;
+flex-direction:column;
+}
+
+.file-name{
+font-weight:600;
+}
+
+.file-meta{
+font-size:12px;
+color:var(--muted);
+}
+
+.status{
+font-size:13px;
+padding:6px 10px;
+border-radius:999px;
+background:rgba(255,255,255,.08);
+}
+
+.status.done{color:var(--accent2);}
+.status.error{color:#ff5c7a;}
 </style>
 </head>
 
 <body>
 
-<h2>Пакетный конвертер в JPG</h2>
+<div class="container">
 
+<h1>Премиум конвертер изображений</h1>
+<div class="subtitle">HEIC / TIFF / IMG → JPG. Обработка локально в браузере.</div>
+
+<div class="card">
+
+<div class="dropzone" id="dropzone">
+Перетащи файлы сюда или нажми для выбора
 <input type="file" id="fileInput" multiple
 accept=".jpg,.jpeg,.png,.webp,.tif,.tiff,.heic,.heif,.img,image/*">
+</div>
 
-<br>
-
-<label>Качество JPG (0.5–1.0)</label>
+<div class="controls">
+<label>Качество JPG</label>
 <input type="number" id="quality" value="0.92" min="0.5" max="1" step="0.01">
-
-<br>
-
-<button id="convertBtn">Конвертировать</button>
-<button id="zipBtn" disabled>Скачать ZIP</button>
-<button id="clearBtn">Очистить</button>
+<button class="primary" id="convertBtn">Конвертировать</button>
+<button class="secondary" id="zipBtn" disabled>Скачать ZIP</button>
+<button class="secondary" id="clearBtn">Очистить</button>
+</div>
 
 <div class="progress"><div class="bar" id="bar"></div></div>
 
-<table>
-<thead>
-<tr>
-<th>Файл</th>
-<th>Размер</th>
-<th>Статус</th>
-<th>Скачать</th>
-</tr>
-</thead>
-<tbody id="tbody"></tbody>
-</table>
+<div class="file-list" id="fileList"></div>
+
+</div>
+</div>
 
 <script>
-const fileInput = document.getElementById("fileInput");
-const tbody = document.getElementById("tbody");
-const bar = document.getElementById("bar");
-const zipBtn = document.getElementById("zipBtn");
+const fileInput=document.getElementById("fileInput");
+const dropzone=document.getElementById("dropzone");
+const fileList=document.getElementById("fileList");
+const bar=document.getElementById("bar");
+const zipBtn=document.getElementById("zipBtn");
 
-let items = [];
+let items=[];
 
-function ext(name){return name.split(".").pop().toLowerCase();}
-function base(name){return name.replace(/\.[^/.]+$/,"");}
 function fmt(n){return (n/1024/1024).toFixed(2)+" MB";}
+function ext(n){return n.split(".").pop().toLowerCase();}
+function base(n){return n.replace(/\.[^/.]+$/,"");}
 
-fileInput.addEventListener("change",e=>{
-  items=[];
-  tbody.innerHTML="";
-  Array.from(e.target.files).forEach(f=>{
-    items.push({file:f,status:"queued"});
-  });
-  render();
-});
+dropzone.onclick=()=>fileInput.click();
+fileInput.onchange=e=>addFiles(e.target.files);
 
-document.getElementById("clearBtn").onclick=()=>{
-  items=[];
-  tbody.innerHTML="";
-  bar.style.width="0%";
-  zipBtn.disabled=true;
+dropzone.ondragover=e=>{e.preventDefault();dropzone.style.borderColor="#7c5cff";}
+dropzone.ondragleave=e=>{dropzone.style.borderColor="rgba(255,255,255,.2)";}
+dropzone.ondrop=e=>{
+e.preventDefault();
+dropzone.style.borderColor="rgba(255,255,255,.2)";
+addFiles(e.dataTransfer.files);
 };
 
+function addFiles(files){
+for(const f of files){
+items.push({file:f,status:"queued"});
+}
+render();
+}
+
 function render(){
-  tbody.innerHTML="";
-  items.forEach((it,i)=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML=`
-      <td>${it.file.name}</td>
-      <td>${fmt(it.file.size)}</td>
-      <td>${it.status}</td>
-      <td>${it.blob?`<a download="${it.outName}" href="${URL.createObjectURL(it.blob)}">JPG</a>`:"-"}</td>
-    `;
-    tbody.appendChild(tr);
-  });
+fileList.innerHTML="";
+items.forEach(it=>{
+const div=document.createElement("div");
+div.className="file-card";
+div.innerHTML=`
+<div class="file-info">
+<div class="file-name">${it.file.name}</div>
+<div class="file-meta">${fmt(it.file.size)}</div>
+</div>
+<div class="status ${it.status}">${it.status}</div>
+`;
+fileList.appendChild(div);
+});
 }
 
 function canvasFromRGBA(rgba,w,h){
-  const c=document.createElement("canvas");
-  c.width=w;c.height=h;
-  const ctx=c.getContext("2d");
-  ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba),w,h),0,0);
-  return c;
+const c=document.createElement("canvas");
+c.width=w;c.height=h;
+c.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(rgba),w,h),0,0);
+return c;
 }
 
 async function decodeTIFF(file){
-  const buf=await file.arrayBuffer();
-  const ifds=UTIF.decode(buf);
-  UTIF.decodeImage(buf,ifds[0]);
-  const rgba=UTIF.toRGBA8(ifds[0]);
-  return canvasFromRGBA(rgba,ifds[0].width,ifds[0].height);
+const buf=await file.arrayBuffer();
+const ifds=UTIF.decode(buf);
+UTIF.decodeImage(buf,ifds[0]);
+return canvasFromRGBA(UTIF.toRGBA8(ifds[0]),ifds[0].width,ifds[0].height);
 }
 
 async function decodeGeneric(file){
-  const img=await createImageBitmap(file);
-  const c=document.createElement("canvas");
-  c.width=img.width;c.height=img.height;
-  c.getContext("2d").drawImage(img,0,0);
-  img.close();
-  return c;
+const img=await createImageBitmap(file);
+const c=document.createElement("canvas");
+c.width=img.width;c.height=img.height;
+c.getContext("2d").drawImage(img,0,0);
+img.close();
+return c;
 }
 
-async function toJpeg(canvas,quality){
-  return new Promise(r=>canvas.toBlob(r,"image/jpeg",quality));
+async function toJpeg(canvas,q){
+return new Promise(r=>canvas.toBlob(r,"image/jpeg",q));
 }
 
-async function convertOne(it,quality){
-
-  const e=ext(it.file.name);
-
-  if(e==="heic"||e==="heif"){
-    const out=await heic2any({blob:it.file,toType:"image/jpeg",quality});
-    const blob=Array.isArray(out)?out[0]:out;
-    const canvas=await decodeGeneric(blob);
-    return await toJpeg(canvas,quality);
-  }
-
-  if(e==="tif"||e==="tiff"){
-    const canvas=await decodeTIFF(it.file);
-    return await toJpeg(canvas,quality);
-  }
-
-  // img или любой другой image/*
-  const canvas=await decodeGeneric(it.file);
-  return await toJpeg(canvas,quality);
+async function convertOne(it,q){
+const e=ext(it.file.name);
+if(e==="heic"||e==="heif"){
+const out=await heic2any({blob:it.file,toType:"image/jpeg",quality:q});
+return Array.isArray(out)?out[0]:out;
+}
+if(e==="tif"||e==="tiff"){
+const c=await decodeTIFF(it.file);
+return await toJpeg(c,q);
+}
+const c=await decodeGeneric(it.file);
+return await toJpeg(c,q);
 }
 
 document.getElementById("convertBtn").onclick=async()=>{
-  const quality=parseFloat(document.getElementById("quality").value);
-  let done=0;
+const q=parseFloat(document.getElementById("quality").value);
+let done=0;
 
-  for(const it of items){
-    it.status="processing";
-    render();
+for(const it of items){
+it.status="processing";render();
+try{
+it.blob=await convertOne(it,q);
+it.status="done";
+}catch{
+it.status="error";
+}
+done++;
+bar.style.width=(done/items.length*100)+"%";
+render();
+}
 
-    try{
-      const blob=await convertOne(it,quality);
-      it.blob=blob;
-      it.outName=base(it.file.name)+".jpg";
-      it.status="done";
-    }catch(e){
-      console.error(e);
-      it.status="error";
-    }
-
-    done++;
-    bar.style.width=((done/items.length)*100)+"%";
-    render();
-  }
-
-  zipBtn.disabled=!items.some(i=>i.blob);
+zipBtn.disabled=!items.some(i=>i.blob);
 };
 
 zipBtn.onclick=async()=>{
-  const zip=new JSZip();
-  items.filter(i=>i.blob).forEach(i=>{
-    zip.file(i.outName,i.blob);
-  });
-  const blob=await zip.generateAsync({type:"blob"});
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download="converted_jpg.zip";
-  a.click();
+const zip=new JSZip();
+items.filter(i=>i.blob).forEach(i=>{
+zip.file(base(i.file.name)+".jpg",i.blob);
+});
+const blob=await zip.generateAsync({type:"blob"});
+const a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download="converted_images.zip";
+a.click();
+};
+
+document.getElementById("clearBtn").onclick=()=>{
+items=[];
+bar.style.width="0%";
+zipBtn.disabled=true;
+render();
 };
 </script>
 
